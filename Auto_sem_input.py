@@ -1,7 +1,7 @@
 """ 
 Teste Tecnico BCP Estágio Analista de Dados 
 Gabriel Caruzo Espindola
-    
++    
 Processo de automação foi feito via Selenium, onde o código acessa o site da ANBIMA, e faz o download
 O processo de tartamento de dados foi feito via Pandas, onde o código lê os arquivos baixados, 
 e os trata para que sejam salvos em um arquivo Excel final.
@@ -47,7 +47,7 @@ from selenium.webdriver.support import expected_conditions as EC
 #importando a biblioteca tkinter para a interface visual
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 
 # Caminhos dos diretórios e arquivos (ajustar para o seu ambiente)
 driver_path = 'C:/Users/gabri/OneDrive/Área de Trabalho/Desafio BCP/chromedriver-win64/chromedriver-win64/chromedriver.exe'
@@ -180,8 +180,6 @@ def adicionar_indexador_debentures(filepath):
 
 
 
-
-""" Criação de uma intrface visual para a execução das automação"""
 def iniciar_automacao():
     Automacao()
     messagebox.showinfo("Informação", f"Automação concluída em {datetime.now().strftime('%d/%m/%Y')}")
@@ -195,17 +193,30 @@ def update_status(message):
     root.update_idletasks()
 
 
+""" Criação de uma intrface visual para a execução das automação"""
 # Janela principal
 root = tk.Tk()
 root.title("Automação de Dados - BCP")
-root.geometry("800x600") 
 root.configure(bg="darkblue")
 
 # Carregar a imagem da logo
 logo_path = "C:\\Users\\gabri\\OneDrive\\Área de Trabalho\\Desafio BCP\\logo_transparente.png"  
 logo_image = Image.open(logo_path)
-logo_image = logo_image.resize((200, 200), Image.LANCZOS)  
-logo_photo = ImageTk.PhotoImage(logo_image)
+
+# Adicionar fundo da cor da root à imagem
+bg_color = root.cget("bg")
+logo_image_with_bg = Image.new("RGBA", logo_image.size, bg_color)
+logo_image_with_bg.paste(logo_image, (0, 0), logo_image)
+
+# Melhorar a resolução da imagem ao redimensioná-la
+logo_image_with_bg = logo_image_with_bg.resize((273, 106), Image.LANCZOS)
+logo_photo = ImageTk.PhotoImage(logo_image_with_bg)
+
+# Ajustar a geometria da janela principal com base na resolução da imagem
+window_width = 300
+window_height = 400 + logo_image_with_bg.height
+root.geometry(f"{window_width}x{window_height}")
+
 
 # Imagem da logo à janela
 logo_label = tk.Label(root, image=logo_photo)
