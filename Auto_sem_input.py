@@ -52,7 +52,7 @@ from PIL import Image, ImageTk
 # Caminhos dos diretórios e arquivos (ajustar para o seu ambiente)
 driver_path = 'C:/Users/gabri/OneDrive/Área de Trabalho/Desafio BCP/chromedriver-win64/chromedriver-win64/chromedriver.exe'
 download_dir = 'C:\\Users\\gabri\\OneDrive\\Área de Trabalho\\Desafio BCP\\Daily Prices'
-final_filepath = os.path.join(download_dir, 'dataset_final.xlsx')
+Caminho_Final = os.path.join(download_dir, 'dataset_final.xlsx')
 
 # Configurando as preferências do Chrome para definir o diretório de download
 chrome_options = webdriver.ChromeOptions()
@@ -67,7 +67,8 @@ driver = webdriver.Chrome(service=service, options=chrome_options)
 url = 'https://www.anbima.com.br/informacoes/merc-sec-debentures/default.asp'
 
 def Automacao():
-    datas = pd.date_range(end=datetime.today(), periods=7, freq='B').strftime('%d/%m/%Y').tolist()[-6:]
+    # Pega os ultimos 5 dias uteis baseado na data atual(Do computador)
+    datas = pd.date_range(end=datetime.today(), periods=7, freq='B').strftime('%d/%m/%Y').tolist()
     num_repeticoes = 5
 
     for i in range(num_repeticoes):
@@ -84,19 +85,19 @@ def Automacao():
             )
             botao_consulta.click()
             time.sleep(5)
-            before_download = set(os.listdir(download_dir))
+            inicio_download = set(os.listdir(download_dir))
             botao_download = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.XPATH, '//a[contains(@href, ".xls") and contains(@class, "linkinterno")]'))
             )
             update_status("Arquivo encontrado para download.")
             botao_download.click()
             time.sleep(5)
-            after_download = set(os.listdir(download_dir))
-            new_files = after_download - before_download
-            if new_files:
-                downloaded_filename = new_files.pop()
-                update_status(f"Arquivo baixado: {downloaded_filename}")
-                Alterar_nome(downloaded_filename, datas, i)
+            final_download = set(os.listdir(download_dir))
+            novo_arquivo = final_download - inicio_download
+            if novo_arquivo:
+                downloaded_nome = novo_arquivo.pop()
+                update_status(f"Arquivo baixado: {downloaded_nome}")
+                Alterar_nome(downloaded_nome, datas, i)
             else:
                 update_status("Nenhum novo arquivo foi baixado.")
             time.sleep(1)
@@ -105,7 +106,10 @@ def Automacao():
 
     driver.quit()
     data_set(datas)
+    adicionar_indexador_debentures(Caminho_Final)  # Chama a função do Indexador de Debêntures
 
+
+# Função para alterar o nome do arquivo baixado
 def Alterar_nome(downloaded_filename, datas, index):
     data_input = datas[index]
     dia, mes, ano = data_input.split('/')
@@ -122,6 +126,7 @@ def Alterar_nome(downloaded_filename, datas, index):
         except PermissionError:
             time.sleep(1)
 
+# Função para tratar os dados e salvar em um arquivo final do dataset
 def data_set(datas):
     all_data = []
     for data_input in datas:
@@ -131,8 +136,8 @@ def data_set(datas):
         if os.path.exists(filepath):
             xls = pd.ExcelFile(filepath)
             for sheet_name in xls.sheet_names:
-                df_columns = pd.read_excel(xls, sheet_name=sheet_name, skiprows=7, nrows=2)
-                column_names = df_columns.columns.tolist()
+                df_colunas = pd.read_excel(xls, sheet_name=sheet_name, skiprows=7, nrows=2)
+                column_names = df_colunas.columns.tolist()
                 df = pd.read_excel(xls, sheet_name=sheet_name, skiprows=9, header=None)
                 df.columns = column_names
                 df = df.dropna(axis=1, how='all')
@@ -151,10 +156,12 @@ def data_set(datas):
                     update_status(f"A coluna 'Código' não foi encontrada na aba {sheet_name} do arquivo {filename}.")
                 all_data.append(df)
     final_df = pd.concat(all_data, ignore_index=True)
-    with pd.ExcelWriter(final_filepath) as writer:
+    with pd.ExcelWriter(Caminho_Final) as writer:
         final_df.to_excel(writer, sheet_name='Consolidado', index=False)
-    update_status(f"Todos os dados foram salvos na aba 'Consolidado' do arquivo {final_filepath}.")
+    update_status(f"Todos os dados foram salvos na aba 'Consolidado' do arquivo {Caminho_Final}.")
 
+
+# Função para adicionar a coluna Indexador de Debêntures ao arquivo final
 def adicionar_indexador_debentures(filepath):
     df = pd.read_excel(filepath, sheet_name='Consolidado')
     if 'Índice/ Correção' in df.columns:
@@ -171,28 +178,7 @@ def adicionar_indexador_debentures(filepath):
     df.to_excel(filepath, sheet_name='Consolidado', index=False)
     update_status(f"A coluna 'Indexador de debêntures' foi adicionada ao arquivo {filepath}.")
 
-def plotar_graficos(filepath):
-    df = pd.read_excel(filepath, sheet_name='Consolidado')
-    required_columns = ['data', 'Indexador de debêntures', 'Taxa Indicativa']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        update_status(f"As seguintes colunas necessárias não foram encontradas no DataFrame: {', '.join(missing_columns)}")
-        return
-    df['data'] = pd.to_datetime(df['data'], format='%d/%m/%Y')
-    df['Taxa Indicativa'] = pd.to_numeric(df['Taxa Indicativa'], errors='coerce')
-    df_grouped = df.groupby(['Indexador de debêntures', 'data'])['Taxa Indicativa'].mean().reset_index()
-    indexadores = df_grouped['Indexador de debêntures'].unique()
-    for indexador in indexadores:
-        df_indexador = df_grouped[df_grouped['Indexador de debêntures'] == indexador]
-        plt.figure(figsize=(10, 6))
-        plt.plot(df_indexador['data'], df_indexador['Taxa Indicativa'], marker='o')
-        plt.title(f'Taxa Indicativa por Data - {indexador}')
-        plt.xlabel('Data')
-        plt.ylabel('Taxa Indicativa')
-        plt.grid(True)
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        plt.show()
+
 
 
 """ Criação de uma intrface visual para a execução das automação"""
@@ -200,10 +186,9 @@ def iniciar_automacao():
     Automacao()
     messagebox.showinfo("Informação", f"Automação concluída em {datetime.now().strftime('%d/%m/%Y')}")
 
-
-def plotar_graficos_interface():
-    plotar_graficos(final_filepath)
-    messagebox.showinfo("Informação", "Gráficos plotados!")
+def adicionar_indexador():
+    adicionar_indexador_debentures(Caminho_Final)
+    messagebox.showinfo("Informação", "Indexador de debêntures adicionado!")
 
 def update_status(message):
     status_label.config(text=message)
@@ -217,7 +202,7 @@ root.geometry("800x600")
 root.configure(bg="darkblue")
 
 # Carregar a imagem da logo
-logo_path = "C:\\Users\\gabri\\OneDrive\\Área de Trabalho\\Desafio BCP\\logo-black-.png"  
+logo_path = "C:\\Users\\gabri\\OneDrive\\Área de Trabalho\\Desafio BCP\\logo_transparente.png"  
 logo_image = Image.open(logo_path)
 logo_image = logo_image.resize((200, 200), Image.LANCZOS)  
 logo_photo = ImageTk.PhotoImage(logo_image)
@@ -231,15 +216,13 @@ data_label = tk.Label(root, text=f"Data: {datetime.now().strftime('%d/%m/%Y')}")
 data_label.pack(pady=10)
 
 # Exibir o status da automação
-status_label = tk.Label(root, text="Status: Aguardando...")
+status_label = tk.Label(root, text="Status: Realizando Download...")
 status_label.pack(pady=10)
 
 # Botões para as funcionalidades
 btn_automacao = tk.Button(root, text="Iniciar Automação", command=iniciar_automacao)
 btn_automacao.pack(pady=10)
 
-btn_plotar_graficos = tk.Button(root, text="Plotar Gráficos", command=plotar_graficos_interface)
-btn_plotar_graficos.pack(pady=10)
 
 # Execução da janela principal
 root.mainloop()
